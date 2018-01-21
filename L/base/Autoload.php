@@ -20,7 +20,7 @@ final class Autoload
 
     public static function init()
     {
-        self::$protectedPath = PUBLIC_PATH . '/../protected';
+        self::$protectedPath = BASE_PATH;
     }
 
     /**

@@ -9,7 +9,6 @@
 namespace L\log;
 
 use L;
-use L\base\Env;
 
 class Logger
 {
@@ -61,13 +60,13 @@ class Logger
         foreach ($fileArr as $filename) {
             $runtime = $runtimePath . '/' . date('Ymd') . '/' . $filename . '/';
             if (!is_dir($runtime)) {
-                umask(0);
                 @mkdir($runtime, 0777, true);
+                chmod($runtime, 0777);
             }
             $cmd = '';
-            if (L::app()->env->run == Env::){
+            if (L::app()->env->isCmd()) {
                 $cmd = 'cmd';
-        }
+            }
             for ($i = 1; $i < 100000; $i++) {
                 $file = $runtime . $i . $cmd . $ext;
                 if (!(is_file($file) && (filesize($file) / 1024) >= $this->maxsize)) {
@@ -81,15 +80,13 @@ class Logger
             }
 
         }
-
-
-        $this->_logArr = array();
+        $this->_logArr = [];
         return true;
     }
 
     protected function getContent()
     {
-        $content = array();
+        $content = [];
         foreach ($this->_logArr as $level => $logArr) {
             $logstr = date('Y-m-d H:i:s') . " [$level] \n";
 
@@ -102,10 +99,10 @@ class Logger
                 $logstr .= "\nargv=  " . var_export($_SERVER['argv'], true);
             }
             $logstr .= "\n\nPOST " . L::t('data') . "：   " . var_export($_POST, true) . "\n\n" . '==========================================================================' . "\n\n";
-            $content[] = array(
+            $content[] = [
                 'level' => $level,
                 'content' => $logstr,
-            );
+            ];
 
 
         }
@@ -126,7 +123,7 @@ class Logger
             'level' => $level,
             'catalog' => $catalog,
         );
-        if (L::app()->env->run == CEnv::RUN_CMD) {
+        if (L::app()->env->isCmd()) {
             $this->save();
         }
         return $this;

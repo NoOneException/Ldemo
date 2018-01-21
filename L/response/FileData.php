@@ -12,18 +12,11 @@ class FileData extends Response
 
     public function __construct(string $filename, $showname = null)
     {
+        if (!is_file($filename)) {
+            throw new \ErrorException();
+        }
         $this->filename = $filename;
         $this->showname = $showname ?? pathinfo($filename, PATHINFO_BASENAME);
-        $this->setHeaders([
-            'Content-Description' => 'File Transfer',
-            'Content-Type' => 'application/octet-stream',
-            'Content-Disposition' => 'attachment; filename=' . $this->showname,
-            'Content-Transfer-Encoding' => 'binary',
-            'Expires' => '0',
-            'Cache-Control' => 'must-revalidate',
-            'Pragma' => 'public',
-            'Content-Length' => filesize($this->filename),
-        ]);
     }
 
     /**
@@ -36,6 +29,27 @@ class FileData extends Response
 
     protected function onGetContent(): string
     {
-        return file_get_contents($this->filename);
+        if (file_exists($this->filename)) {
+            if (false !== ($file = fopen($this->filename, 'r'))) {
+                while (!feof($file)) {
+                    echo fgets($file, 4096);
+                }
+            }
+        }
+        return '';
+    }
+
+    public function getHeaders(): array
+    {
+        return [
+            'Content-Description' => 'File Transfer',
+            'Content-Type' => 'application/octet-stream',
+            'Content-Disposition' => 'attachment; filename=' . $this->showname,
+            'Content-Transfer-Encoding' => 'chunked',
+            'Expires' => gmdate('D, d M Y H:i:s T'),
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Pragma' => 'public',
+            'Content-Length' => filesize($this->filename),
+        ];
     }
 }

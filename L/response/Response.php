@@ -4,7 +4,7 @@ namespace L\response;
 
 abstract class Response
 {
-    private $headers = [];
+    protected $headers = [];
     protected $content;
 
     public final function setHeader(string $name, $val)
@@ -38,10 +38,22 @@ abstract class Response
 
     protected abstract function onGetContent(): string;
 
+    public function getHeaders() :array
+    {
+        return $this->headers;
+    }
+
     private function sendHeader()
     {
-        foreach ($this->headers as $name => $value) {
-            header($name . ':' . $value);
+        $headers = $this->getHeaders();
+        foreach ($headers as $name => $value) {
+            if (is_array($value) && $value) {
+                foreach ($value as $item) {
+                    header($name . ':' . $item);
+                }
+            } else {
+                header($name . ':' . $value);
+            }
         }
     }
 }

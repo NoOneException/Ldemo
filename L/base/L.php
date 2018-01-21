@@ -1,6 +1,7 @@
 <?php
 
 use L\base\App;
+use L\i18n\Translator;
 
 final class L
 {
@@ -20,5 +21,10 @@ final class L
             throw new ErrorException('app未创建');
         }
         return self::$_app;
+    }
+
+    public static function t(string $str, array $params = [], $language = null)
+    {
+        return Translator::t($str,$params,$language ?? self::app()->env->language);
     }
 }

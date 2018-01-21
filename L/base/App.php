@@ -4,6 +4,7 @@ namespace L\base;
 
 use Exception;
 use L\action\Action;
+use L\action\RequestProcessor;
 use L\action\Controller;
 use L\db\DBConnect;
 use L\interceptor\AppExceptionInterceptor;
@@ -21,6 +22,7 @@ use L\route\Url;
  * @property  Env env
  * @property  DBConnect db
  * @property  string basePath
+ * @property  string publicPath
  * @property  Action action
  * @property  Controller controller
  * @property  Response response
@@ -43,28 +45,32 @@ final class App
     public function __construct(array $config)
     {
         $this->_components = array_merge_recursive($this->_components, $config);
-        $this->basePath = PUBLIC_PATH . '/../protected';
+        $this->publicPath = substr($_SERVER['DOCUMENT_ROOT'], 0, -1);
+        $this->basePath = BASE_PATH;
     }
 
     public function __get($name)
     {
         if ($this->$name == null) {
             $componentProperty = $this->_components[$name];
-            $class = $componentProperty['class'];
-            $obj = new $class();
-            foreach ($componentProperty as $attr => $val) {
-                if ($attr != 'class') {
-                    if (is_array($val)) {
-                        if (!is_array($obj->$attr)) {
-                            $obj->$attr = [];
+            if ($class = $componentProperty['class']) {
+                /** @var Component $component */
+                $component = new $class();
+                foreach ($componentProperty as $attr => $val) {
+                    if ($attr != 'class') {
+                        if (is_array($val)) {
+                            if (!is_array($component->$attr)) {
+                                $component->$attr = [];
+                            }
+                            $component->$attr = array_merge($component->$attr, $val);;
+                        } else {
+                            $component->$attr = $val;
                         }
-                        $obj->$attr = array_merge($obj->$attr, $val);;
-                    } else {
-                        $obj->$attr = $val;
                     }
                 }
+                $component->init();
+                $this->$name = $component;
             }
-            $this->$name = $obj;
         }
         return $this->$name;
     }
@@ -78,39 +84,47 @@ final class App
             $this->doModuleEndInterceptors();
             $this->afterRun();
         } catch (Exception $e) {
+            var_dump($e->getMessage());
             $this->handleException($e);
         }
     }
 
     private function main()
     {
+        $this->init();
+        $processor = $this->getRequestProcessor();
+        $this->response = $processor->onProcess();
+        $this->response->send();
+    }
+
+    private function init()
+    {
         $actionClass = $this->url->getActionClass();
-        $filename = \Autoload::getClassFile($actionClass);
-        if (file_exists($filename)) {
+        if (file_exists(\Autoload::getClassFile($actionClass))) {
             $this->action = new $actionClass();
-            $this->response = $this->action->run();
         } else {
             $controllerClass = $this->url->getControllerClass();
             if (!file_exists(\Autoload::getClassFile($controllerClass))) {
                 throw new \ErrorException('The controller is not exist.');
             }
             $this->controller = new $controllerClass();
-            $actionMethod = $this->url->getAction() . 'Action';
-            if (!method_exists($this->controller, $actionMethod)) {
-                throw new \ErrorException('The action is not exist.');
-            }
-            $this->response = $this->controller->$actionMethod();
         }
-        $this->response->send();
+    }
+
+    private function getRequestProcessor(): RequestProcessor
+    {
+        if ($this->action) {
+            return new RequestProcessor($this->action);
+        }
+        return new RequestProcessor($this->controller);
     }
 
     private function beforeRun()
     {
         if ($runBeforeInterceptors = $this->getRunBeforeInterceptors()) {
             foreach ($runBeforeInterceptors as $runBeforeInterceptor) {
-                /** @var AppRunBeforeInterceptor $interceptor */
                 $interceptor = new $runBeforeInterceptor;
-                if (!$interceptor->onAppRunBefore($this->request)) {
+                if ($interceptor instanceof AppRunBeforeInterceptor && !$interceptor->onAppRunBefore($this->request)) {
                     exit;
                 }
             }
@@ -121,9 +135,8 @@ final class App
     {
         if ($runAfterInterceptors = $this->getRunAfterInterceptors()) {
             foreach ($runAfterInterceptors as $runAfterInterceptor) {
-                /** @var AppRunAfterInterceptor $interceptor */
                 $interceptor = new $runAfterInterceptor;
-                if (!$interceptor->onAppRunAfter($this->request)) {
+                if ($interceptor instanceof AppRunAfterInterceptor && !$interceptor->onAppRunAfter($this->request)) {
                     exit;
                 }
             }
@@ -134,9 +147,8 @@ final class App
     {
         if ($moduleStartInterceptors = $this->getModuleStartInterceptors($this->url->getModule())) {
             foreach ($moduleStartInterceptors as $moduleStartInterceptor) {
-                /** @var ModuleStartInterceptor $interceptor */
                 $interceptor = new $moduleStartInterceptor;
-                if (!$interceptor->onModuleStart($this->request)) {
+                if ($interceptor instanceof ModuleStartInterceptor && !$interceptor->onModuleStart($this->request)) {
                     exit;
                 }
             }
@@ -147,9 +159,8 @@ final class App
     {
         if ($moduleEndInterceptors = $this->getModuleEndInterceptors($this->url->getModule())) {
             foreach ($moduleEndInterceptors as $moduleEndInterceptor) {
-                /** @var ModuleEndInterceptor $interceptor */
                 $interceptor = new $moduleEndInterceptor;
-                if (!$interceptor->onModuleEnd($this->request, $this->response)) {
+                if ($interceptor instanceof ModuleEndInterceptor && !$interceptor->onModuleEnd($this->request, $this->response)) {
                     exit;
                 }
             }
@@ -157,7 +168,7 @@ final class App
     }
 
     /**
-     * @return array class name of AppRunBeforeInterceptors
+     * @return string[] class name of AppRunBeforeInterceptors
      */
     public function getRunBeforeInterceptors(): array
     {
@@ -165,7 +176,7 @@ final class App
     }
 
     /**
-     * @param array $runBeforeInterceptorClassNames
+     * @param string[] class name of AppRunBeforeInterceptors
      */
     public function addRunBeforeInterceptors(array $runBeforeInterceptorClassNames)
     {
@@ -245,9 +256,10 @@ final class App
     {
         if ($exceptionInterceptors = $this->getExceptionInterceptors()) {
             foreach ($exceptionInterceptors as $exceptionInterceptor) {
-                /** @var AppExceptionInterceptor $interceptor */
                 $interceptor = new $exceptionInterceptor;
-                $interceptor->onAppException($e);
+                if ($interceptor instanceof AppExceptionInterceptor) {
+                    $interceptor->onAppException($e);
+                }
             }
         }
     }

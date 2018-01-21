@@ -2,13 +2,14 @@
 
 namespace L\route;
 
+use L\base\Component;
 use L\base\Session;
 
-final class Request
+final class Request implements Component
 {
     private $params;
 
-    public function __construct()
+    public function init()
     {
         $this->params = array_merge((array)$_GET, (array)$_POST);
     }
@@ -41,4 +42,5 @@ final class Request
         }
         return (string)Session::get('__request_last_url');
     }
+
 }

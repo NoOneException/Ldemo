@@ -5,11 +5,11 @@ namespace L\response;
 class JsonData extends Response
 {
     private $data;
+    protected $headers = ['Content-Type' => 'application/json'];
 
     public function __construct(array $data = [])
     {
         $this->data = $data;
-        $this->setHeader('Content-Type', 'application/json');
     }
 
     protected function onGetContent(): string
@@ -24,5 +24,4 @@ class JsonData extends Response
     {
         return $this->data;
     }
-
 }

@@ -78,7 +78,12 @@ class RenderData extends Response
 
     private function getLayout(): string
     {
-        return L::app()->basePath . '/layouts/' . ($this->layout ?? $this->url->getModule()) . '.php';
+        $layout = $this->layout ?? $this->url->getModule();
+        $layoutFile = L::app()->basePath . '/layouts/' . $layout . '.php';
+        if (!file_exists($layoutFile)){
+            throw new \ErrorException('layout is not exits.');
+        }
+        return $layoutFile;
     }
 
     public function getData(): array

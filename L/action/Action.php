@@ -2,26 +2,15 @@
 
 namespace L\action;
 
-use L;
-use L\response\Response;
+use L\route\Request;
 
-abstract class Action
+/**
+ * Class Action
+ * @package L\action
+ * @property  Request request
+ *
+ */
+abstract class Action extends RequestPerformer
 {
-    public $request;
-    public $baseUrl;
-    public $lastUrl;
 
-    public function __construct()
-    {
-        $this->init();
-    }
-
-    protected function init()
-    {
-        $this->baseUrl = L::app()->url->getBaseUrl();
-        $this->request = L::app()->request;
-        $this->lastUrl = $this->request->getLastUrl();
-    }
-
-    abstract public function run(): Response;
 }
